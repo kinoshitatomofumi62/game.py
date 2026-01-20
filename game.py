@@ -1,71 +1,73 @@
+import streamlit as st
 import sympy as sp
 import random
+
+# ページの設定
+st.set_page_config(page_title="極限突破！リミットバトル", page_icon="♾️")
 
 def generate_problem():
     x = sp.Symbol('x')
     pattern = random.choice(["polynomial", "trig", "exp"])
     
     if pattern == "polynomial":
-        # 因数分解型: (x-a)(x+k) / (x-a)
         a = random.randint(-3, 5)
         k = random.randint(-3, 5)
-        numerator = sp.expand((x - a) * (x + k))
-        denominator = sp.expand(x - a)
+        num = sp.expand((x - a) * (x + k))
+        den = sp.expand(x - a)
         limit_val = a
-        problem_type = "因数分解"
-        
+        p_type = "因数分解"
     elif pattern == "trig":
-        # 三角関数型: sin(ax) / bx
         a = random.randint(2, 5)
         b = random.randint(2, 5)
-        numerator = sp.sin(a * x)
-        denominator = b * x
+        num = sp.sin(a * x)
+        den = b * x
         limit_val = 0
-        problem_type = "三角関数の公式"
-        
+        p_type = "三角関数"
     else:
-        # eの定義型: (1 + 1/x)^(ax)
         a = random.randint(2, 4)
-        numerator = (1 + 1/x)**(a*x)
-        denominator = 1 # 非分数形式
-        limit_val = sp.oo # 無限大
-        problem_type = "自然対数の底 e"
+        num = (1 + 1/x)**(a*x)
+        den = 1
+        limit_val = sp.oo
+        p_type = "自然対数の底 e"
 
-    expr = numerator / denominator
-    answer = sp.limit(expr, x, limit_val)
+    expr = num / den
+    ans = sp.limit(expr, x, limit_val)
     
-    # 表示用の式を作成
-    limit_symbol = "∞" if limit_val == sp.oo else limit_val
-    question_str = f"lim_{{x -> {limit_symbol}}}  ({numerator}) / ({denominator})"
-    if denominator == 1:
-        question_str = f"lim_{{x -> {limit_symbol}}}  {numerator}"
-
-    return question_str, str(answer), problem_type
-
-def play_game():
-    score = 0
-    total_rounds = 5 # まずは5問でお試し
-    
-    print("=== 数学Ⅲ：極限突破クイズ ===")
-    print("答えが分数の場合は '1/2'、eの2乗の場合は 'e**2' のように入力してください。")
-    print("-" * 30)
-
-    for i in range(1, total_rounds + 1):
-        question, correct_answer, p_type = generate_problem()
-        print(f"\n第 {i} 問 [{p_type}]")
-        print(f"問題: {question}")
+    # LaTeX表示用の文字列作成
+    lim_sym = r"\infty" if limit_val == sp.oo else str(limit_val)
+    if den == 1:
+        latex_str = rf"\lim_{{x \to {lim_sym}}} {sp.latex(num)}"
+    else:
+        latex_str = rf"\lim_{{x \to {lim_sym}}} \frac{{{sp.latex(num)}}}{{{sp.latex(den)}}}"
         
-        user_input = input("答えは？ > ").strip()
-        
-        # SymPyで比較するためにユーザー入力をパース（簡易判定）
-        if user_input.replace(" ", "") == correct_answer.replace(" ", ""):
-            print("★ 正解！ ★")
-            score += 1
-        else:
-            print(f"残念... 正解は {correct_answer} でした。")
+    return latex_str, str(ans), p_type
 
-    print("-" * 30)
-    print(f"ゲーム終了！ あなたのスコアは {score} / {total_rounds} です。")
+# --- メイン画面 ---
+st.title("♾️ 極限突破！リミットバトル")
+st.write("数学Ⅲの極限値を求めてモンスターを倒せ！")
 
-if __name__ == "__main__":
-    play_game()
+if 'problem' not in st.session_state:
+    st.session_state.problem = generate_problem()
+    st.session_state.score = 0
+
+latex_q, correct_ans, p_type = st.session_state.problem
+
+st.info(f"現在のステージ: {p_type}")
+st.latex(latex_q)
+
+user_input = st.text_input("答えを入力してください (例: 2, 1/2, e**2, oo)", key="input")
+
+if st.button("回答する"):
+    if user_input.replace(" ", "") == correct_ans.replace(" ", ""):
+        st.success("✨ 正解！ ✨")
+        st.session_state.score += 1
+        if st.button("次の問題へ"):
+            st.session_state.problem = generate_problem()
+            st.rerun()
+    else:
+        st.error(f"残念！ 正解は {correct_ans} でした。")
+        if st.button("もう一度挑戦"):
+            st.session_state.problem = generate_problem()
+            st.rerun()
+
+st.sidebar.write(f"現在のスコア: {st.session_state.score}")
