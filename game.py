@@ -2,98 +2,97 @@ import streamlit as st
 import sympy as sp
 import random
 
-st.set_page_config(page_title="極限突破！リミットバトル Ver.10", page_icon="♾️", layout="wide")
+st.set_page_config(page_title="極限突破！リミットバトル Ver.11", page_icon="♾️", layout="wide")
 
 def generate_problem(stage):
-    x = sp.Symbol('x', real=True) # 実数として定義
+    x = sp.Symbol('x', real=True)
     
+    # 出現パターンの抽選
     patterns = ["polynomial", "trig_basic"]
     if stage >= 3: patterns.append("rationalize")
     if stage >= 5: patterns.append("trig_advanced_cos")
     if stage >= 7: patterns.append("inf_limit")
     if stage >= 9: patterns.append("squeeze")      
-    if stage >= 10: patterns.append("minus_inf") # マイナス無限大(NEW!)
+    if stage >= 10: patterns.append("minus_inf") 
     
     pattern = random.choice(patterns) if stage >= 10 else patterns[min(stage-1, len(patterns)-1)]
 
-    # --- マイナス無限大パターンのロジック ---
+    # --- 各パターンの生成ロジック ---
     if pattern == "minus_inf":
-        a = random.randint(2, 5)
-        # sqrt(x^2 + ax) / x  (x -> -oo) 型
-        # x < 0 のとき x = -sqrt(x^2) なので、答えは -1 になる
-        num = sp.sqrt(x**2 + a*x)
-        den = x
-        limit_val = -sp.oo
-        ans = -1
-        dummies = {1, 0, a, -a, sp.oo}
-        p_type = "minus_inf"
+        # x -> -oo の符号の罠
+        a = random.randint(2, 6)
+        num, den, limit_val, ans = sp.sqrt(x**2 + a*x), x, -sp.oo, -1
+        dummies = {1, 0, a, -a, sp.oo, -sp.oo}
 
-    # --- 既存のパターン (整理) ---
     elif pattern == "polynomial":
         a, k = random.randint(2, 6) * random.choice([-1, 1]), random.randint(1, 5)
         num, den, limit_val, ans = sp.expand((x-a)*(x+k)), x-a, a, a+k
-        dummies = {a-k, -(a+k), 0, 1}
-        p_type = "poly"
+        dummies = {a-k, -(a+k), 0, 1, k, -k}
         
     elif pattern == "trig_basic":
         a, b = random.randint(2, 9), random.randint(2, 9)
         num, den, limit_val, ans = sp.sin(a*x), b*x, 0, sp.Rational(a, b)
-        dummies = {sp.Rational(b, a), 1, 0, a}
-        p_type = "trig"
+        dummies = {sp.Rational(b, a), 1, 0, a, b, sp.Rational(a+1, b)}
 
     elif pattern == "rationalize":
         a = random.randint(1, 5)
         num, den, limit_val, ans = sp.sqrt(x + a**2) - a, x, 0, sp.Rational(1, 2*a)
-        dummies = {2*a, sp.Rational(1, a), 0, sp.Rational(1, 2)}
-        p_type = "rat"
+        dummies = {2*a, sp.Rational(1, a), 0, sp.Rational(1, 2), a}
 
     elif pattern == "inf_limit":
         a, b = random.randint(2, 8), random.randint(2, 8)
         num, den, limit_val, ans = a*x**2 + random.randint(1,9)*x, b*x**2 + 1, sp.oo, sp.Rational(a, b)
-        dummies = {0, sp.oo, sp.Rational(b, a), 1}
-        p_type = "inf"
+        dummies = {0, sp.oo, sp.Rational(b, a), 1, sp.Rational(a, 1)}
 
     elif pattern == "trig_advanced_cos":
         a = random.randint(2, 5)
         num, den, limit_val, ans = 1 - sp.cos(a*x), x**2, 0, sp.Rational(a**2, 2)
-        dummies = {a**2, sp.Rational(a, 2), sp.Rational(1, 2)}
-        p_type = "cos"
+        dummies = {a**2, sp.Rational(a, 2), sp.Rational(1, 2), a}
 
     elif pattern == "squeeze":
         a = random.randint(2, 5)
         if random.random() > 0.5:
             num, den, limit_val, ans = sp.sin(a*x), x, sp.oo, 0
-            dummies = {1, a, sp.oo}
+            dummies = {1, a, sp.oo, -1}
         else:
             num, den, limit_val, ans = sp.sin(a*x), x, 0, a
-            dummies = {1, 0, a**2}
-        p_type = "sq"
+            dummies = {1, 0, a**2, sp.Rational(1, a)}
     
     else: # inf_minus_inf
         a = random.randint(2, 8)
         num, den, limit_val, ans = sp.sqrt(x**2 + a*x) - x, 1, sp.oo, sp.Rational(a, 2)
-        dummies = {a, 0, sp.oo}
-        p_type = "imi"
+        dummies = {a, 0, sp.oo, 1}
 
-    # --- 共通処理 ---
+    # --- 共通の整形・エラー回避処理 ---
     def format_opt(val):
         if val == sp.oo: return "∞"
         if val == -sp.oo: return "-∞"
         return str(sp.simplify(val))
 
     correct_ans_str = format_opt(ans)
-    final_dummies = {format_opt(d) for d in dummies if format_opt(d) != correct_ans_str}
-    options = random.sample(list(final_dummies), 3) + [correct_ans_str]
+    
+    # 重複を排除し、文字列のリストにする
+    final_dummies = list({format_opt(d) for d in dummies if format_opt(d) != correct_ans_str})
+    
+    # 【重要】もし候補が3つ未満なら、適当な数字を足して強制的に4択にする（ValueError回避）
+    extra_candidates = ["2", "-2", "3", "1/3", "-1", "4", "1/4"]
+    for extra in extra_candidates:
+        if len(final_dummies) >= 3: break
+        if extra != correct_ans_str and extra not in final_dummies:
+            final_dummies.append(extra)
+
+    options = random.sample(final_dummies, 3) + [correct_ans_str]
     random.shuffle(options)
     
-    if p_type == "minus_inf" or p_type == "imi":
-        latex_str = rf"\lim_{{x \to {sp.latex(limit_val)}}} \left( {sp.latex(num)} \right)" if p_type == "imi" else rf"\lim_{{x \to {sp.latex(limit_val)}}} \frac{{{sp.latex(num)}}}{{{sp.latex(den)}}}"
+    # 数式表示の切り替え
+    if pattern in ["minus_inf", "inf_minus_inf"] and den == 1:
+        latex_str = rf"\lim_{{x \to {sp.latex(limit_val)}}} \left( {sp.latex(num)} \right)"
     else:
         latex_str = rf"\lim_{{x \to {sp.latex(limit_val)}}} \frac{{{sp.latex(num)}}}{{{sp.latex(den)}}}"
     
     return latex_str, correct_ans_str, options
 
-# --- UI (共通) ---
+# --- アプリ管理 ---
 if 'score' not in st.session_state:
     st.session_state.update({'score':0, 'stage':1, 'lives':3, 'answered':False})
     st.session_state.problem_data = generate_problem(1)
