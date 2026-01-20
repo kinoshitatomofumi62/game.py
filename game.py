@@ -57,4 +57,75 @@ def generate_problem(stage):
             dummies = {"1", str(a), "0", "1/2", str(a*2), "3", "2/3"}
 
     correct_ans = str(ans)
-    dummies.discard(correct_ans) # 正解と被ったら消
+    dummies.discard(correct_ans) # 正解と被ったら消す
+    
+    # 常に3つのダミーをランダム抽出して4択にする
+    options = random.sample(list(dummies), 3) + [correct_ans]
+    random.shuffle(options)
+    
+    latex_str = rf"\lim_{{x \to {limit_val}}} \frac{{{sp.latex(num)}}}{{{sp.latex(den)}}}"
+    return latex_str, correct_ans, p_type, options
+
+# --- セッション状態の管理 ---
+if 'score' not in st.session_state:
+    st.session_state.score = 0
+    st.session_state.stage = 1
+    st.session_state.lives = 3
+    st.session_state.game_over = False
+    st.session_state.answered = False
+    st.session_state.problem_data = generate_problem(st.session_state.stage)
+
+# --- 画面表示 ---
+st.title("♾️ 極限突破！リミットバトル")
+
+if st.session_state.game_over:
+    st.error("💀 ライフが 0 になりました...")
+    st.header(f"最終結果：Stage {st.session_state.stage}（スコア {st.session_state.score}）")
+    if st.button("もう一度最初から挑戦する"):
+        for key in st.session_state.keys(): del st.session_state[key]
+        st.rerun()
+else:
+    # 左右のレイアウト設定
+    col_left, col_right = st.columns([1, 2])
+    
+    with col_left:
+        st.subheader("🛡️ ステータス")
+        st.write(f"**現在のステージ:** {st.session_state.stage}")
+        st.write(f"**スコア:** {st.session_state.score}")
+        st.error(f"**ライフ:** {'❤️' * st.session_state.lives}")
+        st.write("---")
+        st.write("※画像は準備中です。")
+
+    with col_right:
+        latex_q, correct_ans, p_type, options = st.session_state.problem_data
+        st.info(f"ターゲット：{p_type}")
+        st.latex(latex_q)
+
+        # 4択ボタン
+        st.write("答えを選んでください：")
+        cols = st.columns(2)
+        for i, opt in enumerate(options):
+            with cols[i % 2]:
+                # 回答後はボタンを押せなくする
+                if st.button(opt, key=f"btn_{opt}_{st.session_state.score}", use_container_width=True, disabled=st.session_state.answered):
+                    st.session_state.answered = True
+                    if opt == correct_ans:
+                        st.success("正解！モンスターを倒した！")
+                        st.session_state.score += 1
+                        if st.session_state.score % 3 == 0:
+                            st.session_state.stage += 1
+                            st.balloons()
+                    else:
+                        st.error(f"ミス！ダメージを受けた！ (正解は {correct_ans})")
+                        st.session_state.lives -= 1
+                        if st.session_state.lives <= 0:
+                            st.session_state.game_over = True
+
+        # 回答後に次の問題ボタンを表示
+        if st.session_state.answered and not st.session_state.game_over:
+            if st.button("次のモンスターへ進む ➡️", type="primary"):
+                st.session_state.problem_data = generate_problem(st.session_state.stage)
+                st.session_state.answered = False
+                st.rerun()
+
+st.sidebar.caption("数Ⅲ 極限トレーニングアプリ v2.0")
