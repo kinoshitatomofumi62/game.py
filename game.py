@@ -2,119 +2,92 @@ import streamlit as st
 import sympy as sp
 import random
 
-st.set_page_config(page_title="極限突破！リミットバトル", page_icon="♾️", layout="wide")
+st.set_page_config(page_title="極限突破！リミットバトル Ver.6", page_icon="♾️", layout="wide")
 
 def generate_problem(stage):
     x = sp.Symbol('x')
     
-    # ステージ進行による難易度設定
-    # ステージが上がるごとに数値の範囲を大きく、公式を複雑にする
-    difficulty = stage // 2  # 2ステージごとに基本数値が上がる
+    # パターン選択の拡張
+    patterns = ["polynomial", "trig_basic"]
+    if stage >= 3: patterns.append("rationalize")
+    if stage >= 4: patterns.append("trig_advanced_cos")
+    if stage >= 5: patterns.append("trig_complex")
+    if stage >= 6: patterns.append("inf_limit") # 無限大(NEW!)
     
-    if stage == 1:
-        pattern = "polynomial"
-    elif stage == 2:
-        pattern = "trig_basic"
-    elif stage == 3:
-        pattern = "trig_advanced_cos"
-    elif stage == 4:
-        pattern = "trig_advanced_tan"
-    else:
-        # ステージ5以降は全パターンからランダム（係数が大きい）
-        pattern = random.choice(["polynomial", "trig_basic", "trig_advanced_cos", "trig_advanced_tan"])
+    pattern = random.choice(patterns) if stage >= 6 else patterns[min(stage-1, len(patterns)-1)]
 
     if pattern == "polynomial":
-        # 因数分解型: 係数を大きくして暗算を少し難しくする
-        a = random.randint(1, 5 + difficulty) * random.choice([-1, 1])
-        k = random.randint(1, 5 + difficulty) * random.choice([-1, 1])
+        a = random.randint(2, 6) * random.choice([-1, 1])
+        k = random.randint(1, 5)
         num = sp.expand((x - a) * (x + k))
         den = sp.expand(x - a)
-        limit_val = a
-        p_type = "不定形の解消（因数分解）"
-        ans = a + k
-        # ひっかけ：符号ミス、代入ミス(0)、定数項ミスなど
-        dummies = {str(a-k), str(-(a+k)), str(0), str(a*k), str(k), str(a)}
+        limit_val, p_type, ans = a, "不定形の解消（因数分解）", a + k
+        dummies = {str(a-k), str(-(a+k)), "0", str(a), str(k)}
         
     elif pattern == "trig_basic":
-        # sin(ax)/bx 型: 係数を複雑にする
-        a = random.randint(2, 7 + difficulty)
-        b = random.randint(2, 7 + difficulty)
-        num = sp.sin(a * x)
-        den = b * x
-        limit_val = 0
-        p_type = "三角関数の基本公式"
-        ans = sp.Rational(a, b)
-        # ひっかけ：逆数、係数の和、係数の差、1
-        dummies = {f"{b}/{a}", str(sp.Rational(b, a)), "1", str(a), str(b), f"{a+b}/{b}"}
-        
-    elif pattern == "trig_advanced_cos":
-        # (1-cos ax)/x^2 型
-        a = random.randint(2, 4 + difficulty)
-        num = 1 - sp.cos(a * x)
-        den = x**2
-        limit_val = 0
-        ans = sp.Rational(a**2, 2)
-        p_type = "1-cosの応用（2乗に注意）"
-        # ひっかけ：1/2にするのを忘れる、2乗し忘れる、逆数
-        dummies = {str(a**2), str(sp.Rational(a, 2)), f"1/{a**2}", str(sp.Rational(a**2, 1)), "1/2", str(a)}
+        a, b = random.randint(2, 9), random.randint(2, 9)
+        num, den = sp.sin(a * x), b * x
+        limit_val, p_type, ans = 0, "三角関数の基本公式", sp.Rational(a, b)
+        dummies = {f"{b}/{a}", "1", str(a), str(b), "0"}
 
-    else: # trig_advanced_tan
-        # tan ax / sin bx 型
-        a = random.randint(2, 6 + difficulty)
-        b = random.randint(2, 6 + difficulty)
-        if a == b: b += 1
-        num = sp.tan(a * x)
-        den = sp.sin(b * x)
-        limit_val = 0
-        ans = sp.Rational(a, b)
-        p_type = "tanとsinの混在（公式の組合せ）"
-        dummies = {f"{b}/{a}", "1", "0", str(a*b), f"{a}/{a+b}", f"{a-b}/{b}"}
+    elif pattern == "rationalize":
+        a = random.randint(1, 5)
+        num = sp.sqrt(x + a**2) - a
+        den = x
+        limit_val, p_type, ans = 0, "不定形の解消（有理化）", sp.Rational(1, 2 * a)
+        dummies = {str(a), str(2*a), f"1/{a}", "0", "1/2"}
+
+    elif pattern == "inf_limit":
+        # 無限大への極限 (3x^2 / 2x^2 型)
+        a, b = random.randint(2, 7), random.randint(2, 7)
+        num = a * x**2 + random.randint(1, 9) * x
+        den = b * x**2 + random.randint(1, 9)
+        limit_val, p_type, ans = sp.oo, "無限大の極限（最高次数の比較）", sp.Rational(a, b)
+        dummies = {"0", "oo", f"{b}/{a}", str(a), "1"}
+
+    elif pattern == "trig_advanced_cos":
+        a = random.randint(2, 5)
+        num, den = 1 - sp.cos(a * x), x**2
+        limit_val, p_type, ans = 0, "1-cosの応用（2乗に注意）", sp.Rational(a**2, 2)
+        dummies = {str(a**2), f"{a}/2", f"{a**2}/4", "1/2"}
+
+    elif pattern == "trig_complex":
+        a, b = random.randint(2, 8), random.randint(2, 8)
+        num, den = sp.sin(a * x), sp.tan(b * x)
+        limit_val, p_type, ans = 0, "三角関数の複合（sin/tan）", sp.Rational(a, b)
+        dummies = {f"{b}/{a}", "1", "0", f"{a}/{a+b}"}
 
     correct_ans = str(ans)
-    if correct_ans in dummies:
-        dummies.remove(correct_ans)
-    
-    # 選択肢の質を上げるため、数値が近いものを優先
-    sample_list = list(dummies)
-    random.shuffle(sample_list)
-    options = sample_list[:3] + [correct_ans]
+    if correct_ans in dummies: dummies.remove(correct_ans)
+    options = random.sample(list(dummies), 3) + [correct_ans]
     random.shuffle(options)
     
-    latex_str = rf"\lim_{{x \to {limit_val}}} \frac{{{sp.latex(num)}}}{{{sp.latex(den)}}}"
+    latex_str = rf"\lim_{{x \to {sp.latex(limit_val)}}} \frac{{{sp.latex(num)}}}{{{sp.latex(den)}}}"
     return latex_str, correct_ans, p_type, options
 
-# --- アプリ構造 ---
+# --- アプリ管理 (共通) ---
 if 'score' not in st.session_state:
-    st.session_state.score = 0
-    st.session_state.stage = 1
-    st.session_state.lives = 3
-    st.session_state.answered = False
-    st.session_state.problem_data = generate_problem(st.session_state.stage)
+    st.session_state.update({'score':0, 'stage':1, 'lives':3, 'answered':False})
+    st.session_state.problem_data = generate_problem(1)
 
-st.title("♾️ 極限突破！リミットバトル Ver.4")
+st.title("♾️ 極限突破！リミットバトル Ver.6")
 
-if st.session_state.get('game_over', False) or st.session_state.lives <= 0:
+if st.session_state.lives <= 0:
     st.error("💀 GAME OVER")
-    st.header(f"到達ステージ: {st.session_state.stage} | スコア: {st.session_state.score}")
     if st.button("リトライ"):
         for key in list(st.session_state.keys()): del st.session_state[key]
         st.rerun()
 else:
     col_st, col_main = st.columns([1, 3])
-    
     with col_st:
-        st.subheader("📊 Status")
         st.metric("Stage", st.session_state.stage)
         st.metric("Score", st.session_state.score)
-        st.write("---")
         st.error(f"HP: {'❤️' * st.session_state.lives}")
 
     with col_main:
         latex_q, correct_ans, p_type, options = st.session_state.problem_data
         st.info(f"Target: {p_type}")
         st.latex(latex_q)
-
-        st.write("答えを選べ！")
         cols = st.columns(2)
         for i, opt in enumerate(options):
             with cols[i % 2]:
@@ -123,7 +96,7 @@ else:
                     if opt == correct_ans:
                         st.success(f"正解！ 答え: {correct_ans}")
                         st.session_state.score += 1
-                        if st.session_state.score % 2 == 0: # 2問ごとにステージアップ（速め）
+                        if st.session_state.score % 2 == 0:
                             st.session_state.stage += 1
                             st.balloons()
                     else:
@@ -131,7 +104,7 @@ else:
                         st.session_state.lives -= 1
 
         if st.session_state.answered:
-            if st.button("次の問題へ進む ➡️", type="primary"):
+            if st.button("次の問題へ ➡️", type="primary"):
                 st.session_state.problem_data = generate_problem(st.session_state.stage)
                 st.session_state.answered = False
                 st.rerun()
