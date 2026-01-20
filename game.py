@@ -82,4 +82,58 @@ def generate_problem(stage):
         return str(sp.simplify(val))
 
     correct_ans_str = format_opt(ans)
-    final_dummies = {format_opt(
+    final_dummies = {format_opt(d) for d in dummies if format_opt(d) != correct_ans_str}
+    options = random.sample(list(final_dummies), 3) + [correct_ans_str]
+    random.shuffle(options)
+    
+    if p_type == "minus_inf" or p_type == "imi":
+        latex_str = rf"\lim_{{x \to {sp.latex(limit_val)}}} \left( {sp.latex(num)} \right)" if p_type == "imi" else rf"\lim_{{x \to {sp.latex(limit_val)}}} \frac{{{sp.latex(num)}}}{{{sp.latex(den)}}}"
+    else:
+        latex_str = rf"\lim_{{x \to {sp.latex(limit_val)}}} \frac{{{sp.latex(num)}}}{{{sp.latex(den)}}}"
+    
+    return latex_str, correct_ans_str, options
+
+# --- UI (共通) ---
+if 'score' not in st.session_state:
+    st.session_state.update({'score':0, 'stage':1, 'lives':3, 'answered':False})
+    st.session_state.problem_data = generate_problem(1)
+
+st.title("♾️ 極限突破！リミットバトル")
+
+if st.session_state.lives <= 0:
+    st.error("💀 GAME OVER")
+    if st.button("リトライ"):
+        for key in list(st.session_state.keys()): del st.session_state[key]
+        st.rerun()
+else:
+    col_st, col_main = st.columns([1, 3])
+    with col_st:
+        st.metric("Stage", st.session_state.stage)
+        st.metric("Score", st.session_state.score)
+        st.error(f"HP: {'❤️' * st.session_state.lives}")
+
+    with col_main:
+        latex_q, correct_ans, options = st.session_state.problem_data
+        st.write("### この極限値を求めよ：")
+        st.latex(latex_q)
+        st.write("---")
+        cols = st.columns(2)
+        for i, opt in enumerate(options):
+            with cols[i % 2]:
+                if st.button(opt, key=f"b_{opt}_{st.session_state.score}", use_container_width=True, disabled=st.session_state.answered):
+                    st.session_state.answered = True
+                    if opt == correct_ans:
+                        st.success(f"正解！ (答え: {correct_ans})")
+                        st.session_state.score += 1
+                        if st.session_state.score % 2 == 0:
+                            st.session_state.stage += 1
+                            st.balloons()
+                    else:
+                        st.error(f"ミス！ 正解は {correct_ans}")
+                        st.session_state.lives -= 1
+
+        if st.session_state.answered:
+            if st.button("次の問題へ ➡️", type="primary"):
+                st.session_state.problem_data = generate_problem(st.session_state.stage)
+                st.session_state.answered = False
+                st.rerun()
